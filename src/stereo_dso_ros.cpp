@@ -50,7 +50,6 @@
 
 #include "ROSOutputWrapper.h"
 
-
 std::string calib = "";
 std::string vignetteFile = "";
 std::string gammaFile = "";
@@ -242,10 +241,13 @@ void parseArgument(char *arg)
     printf("could not parse argument \"%s\"!!\n", arg);
 }
 
-
-FullSystem *fullSystem = 0;
-Undistort *undistorter = 0;
+std::unique_ptr<FullSystem> fullSystem;
+std::unique_ptr<Undistort> undistorter;
+IOWrap::PangolinDSOViewer *viewer;
+dso::ROSOutputWrapper *rosOutput;
 int frameID = 0;
+bool stopSystem = false;
+int start = 2;
 
 double convertStamp(const ros::Time &time)
 {
@@ -253,30 +255,70 @@ double convertStamp(const ros::Time &time)
     return time.sec * 1.0 + time.nsec / 1000000000.0;
 }
 
-void vidCb(const sensor_msgs::ImageConstPtr img)
+void run()
 {
-    cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
-    assert(cv_ptr->image.type() == CV_8U);
-    assert(cv_ptr->image.channels() == 1);
 
-    if (setting_fullResetRequested)
+    /*int ii = 0;
+    int lastResetIndex = 0;
+
+    while (!stopSystem)
     {
-        std::vector<IOWrap::Output3DWrapper *> wraps = fullSystem->outputWrapper;
-        delete fullSystem;
-        for (IOWrap::Output3DWrapper *ow: wraps) ow->reset();
-        fullSystem = new FullSystem();
-        fullSystem->linearizeOperation = false;
-        fullSystem->outputWrapper = wraps;
-        if (undistorter->photometricUndist != 0)
-            fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
-        setting_fullResetRequested = false;
-    }
+        // Skip the first few frames if the start variable is set.
+        if (start > 0 && ii < start)
+        {
+            ++ii;
+            continue;
+        }
 
-    MinimalImageB minImg((int) cv_ptr->image.cols, (int) cv_ptr->image.rows, (unsigned char *) cv_ptr->image.data);
-    ImageAndExposure *undistImg = undistorter->undistort<unsigned char>(&minImg, 1, 0, 1.0f);
-    //fullSystem->addActiveFrame(undistImg, frameID);
-    frameID++;
-    delete undistImg;
+        auto pair = frameContainer.getImageAndIMUData(frameSkipping.getMaxSkipFrames(frameContainer.getQueueSize()));
+
+        if (!pair.first) continue;
+
+        fullSystem->addActiveFrame(pair.first.get(), ii, &(pair.second), nullptr);
+
+        if (fullSystem->initFailed || setting_fullResetRequested)
+        {
+            if (ii - lastResetIndex < 250 || setting_fullResetRequested)
+            {
+                printf("RESETTING!\n");
+                std::vector<IOWrap::Output3DWrapper *> wraps = fullSystem->outputWrapper;
+                fullSystem.reset();
+                for (IOWrap::Output3DWrapper *ow: wraps) ow->reset();
+
+                fullSystem = std::make_unique<FullSystem>(linearizeOperation, imuCalibration, imuSettings);
+                if (undistorter->photometricUndist != nullptr)
+                {
+                    fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
+                }
+                fullSystem->outputWrapper = wraps;
+
+                setting_fullResetRequested = false;
+                lastResetIndex = ii;
+            }
+        }
+
+        if (viewer != nullptr && viewer->shouldQuit())
+        {
+            std::cout << "User closed window -> Quit!" << std::endl;
+            break;
+        }
+
+        if (fullSystem->isLost)
+        {
+            printf("LOST!!\n");
+            break;
+        }
+
+        ++ii;
+
+        // Here for all accumulated poses and PCL publish
+        // sleep here
+        rosOutput.publishOutput();
+        //        r.sleep();
+
+        //        ROS_WARN("Time of loop: %f", ticToc->toc());
+        delete ticToc;
+    }*/
 }
 
 void callback(const sensor_msgs::ImageConstPtr &img, const sensor_msgs::ImageConstPtr &img_right)
@@ -291,13 +333,15 @@ void callback(const sensor_msgs::ImageConstPtr &img, const sensor_msgs::ImageCon
     assert(cv_ptr_right->image.type() == CV_8U);
     assert(cv_ptr_right->image.channels() == 1);
 
-
-    if (setting_fullResetRequested)
+    // TODO: check! maybe the first condition can cause issues
+    if (fullSystem->initFailed || setting_fullResetRequested)
     {
+        printf("RESETTING!\n");
         std::vector<IOWrap::Output3DWrapper *> wraps = fullSystem->outputWrapper;
-        delete fullSystem;
+        fullSystem.reset();
         for (IOWrap::Output3DWrapper *ow: wraps) ow->reset();
-        fullSystem = new FullSystem();
+
+        fullSystem = std::make_unique<FullSystem>();
         fullSystem->linearizeOperation = false;
         fullSystem->outputWrapper = wraps;
         if (undistorter->photometricUndist != 0)
@@ -305,44 +349,60 @@ void callback(const sensor_msgs::ImageConstPtr &img, const sensor_msgs::ImageCon
         setting_fullResetRequested = false;
     }
 
+    if (fullSystem->isLost)
+    {
+        printf("LOST!!\n");
+        ros::shutdown();
+    }
+
+    //    rosOutput->publishOutput();
+
     MinimalImageB minImg((int) cv_ptr->image.cols, (int) cv_ptr->image.rows, (unsigned char *) cv_ptr->image.data);
     MinimalImageB minImg_right((int) cv_ptr_right->image.cols, (int) cv_ptr_right->image.rows,
                                (unsigned char *) cv_ptr_right->image.data);
     ImageAndExposure *undistImg = undistorter->undistort<unsigned char>(&minImg, 1, stamp, 1.0f);
     ImageAndExposure *undistImg_right = undistorter->undistort<unsigned char>(&minImg_right, 1, stamp, 1.0f);
 
+    // TODO: here we should add images
     fullSystem->addActiveFrame(undistImg, undistImg_right, frameID);
     frameID++;
     //printf("frameID: %d\n", frameID);
     delete undistImg;
     delete undistImg_right;
+
+    if (stopSystem)
+    {
+        fullSystem->blockUntilMappingIsFinished();
+
+        //        fullSystem->printResult();
+
+        for (IOWrap::Output3DWrapper *ow: fullSystem->outputWrapper)
+            ow->join();
+        // TODO: check if we need to reset the pointer as well
+
+        printf("DELETE FULLSYSTEM!\n");
+        undistorter.reset();
+        fullSystem.reset();
+
+        ros::shutdown();
+
+        printf("EXIT NOW!\n");
+    }
 }
 
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "stereo_dso_ros");
+    ros::NodeHandle nh;
+
+    // TODO: m.b.i
+    setlocale(LC_ALL, "C");
 
     for (int i = 1; i < argc; i++)
         parseArgument(argv[i]);
 
-    /*
-    //setting_desiredImmatureDensity = 1000;
-    //setting_desiredPointDensity = 1200;
-    //setting_minFrames = 5;
-    //setting_maxFrames = 7;
-    //setting_maxOptIterations=4;
-    //setting_minOptIterations=1;
-    //setting_logStuff = false;
-    //setting_kfGlobalWeight = 1.3;
-
-
-    //printf("MODE WITH CALIBRATION, but without exposure times!\n");
-    //setting_photometricCalibration = 2;
-    //setting_affineOptModeA = 0;
-    //setting_affineOptModeB = 0;
-    */
-
-    undistorter = Undistort::getUndistorterForFile(calib, gammaFile, vignetteFile);
+    undistorter.reset(
+            Undistort::getUndistorterForFile(calib, gammaFile, vignetteFile));
 
     setGlobalCalib(
             (int) undistorter->getSize()[0],
@@ -350,50 +410,45 @@ int main(int argc, char **argv)
             undistorter->getK().cast<float>());
 
     baseline = undistorter->getBl();
-    //setBaseline();
-
-
-    fullSystem = new FullSystem();
-    fullSystem->linearizeOperation = false;
-
 
     if (!disableAllDisplay)
-        fullSystem->outputWrapper.push_back(new IOWrap::PangolinDSOViewer(
+        viewer = new IOWrap::PangolinDSOViewer(
                 (int) undistorter->getSize()[0],
-                (int) undistorter->getSize()[1]));
+                (int) undistorter->getSize()[1]);
 
+    fullSystem = std::make_unique<FullSystem>();
+    fullSystem->linearizeOperation = false;
+
+    if (undistorter->photometricUndist != nullptr)
+        fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
+
+    if (viewer)
+        fullSystem->outputWrapper.push_back(viewer);
 
     if (useSampleOutput)
         fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
 
+    // TODO: check if we need it
+    /*dso::FrameSkippingStrategy frameSkipping(frameSkippingSettings);
+    // frameSkipping registers as an outputWrapper to get notified of changes of the system status.
+    fullSystem->outputWrapper.push_back(&frameSkipping);*/
 
-    if (undistorter->photometricUndist != 0)
-        fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
+    // TODO: check if we need a separate thread
+    //    boost::thread runThread = boost::thread(boost::bind(run, viewer.get()));
 
-    ros::NodeHandle nh;
-    //ros::Subscriber imgSub = nh.subscribe("image", 1, &vidCb);
-    /**********************************************************************/
     message_filters::Subscriber<sensor_msgs::Image> left_sub(nh, "/cam0/image_raw", 1); // "/camera/left/image_raw"
     message_filters::Subscriber<sensor_msgs::Image> right_sub(nh, "/cam1/image_raw", 1);// "/camera/right/image_raw"
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> sync_pol;
     message_filters::Synchronizer<sync_pol> sync(sync_pol(10), left_sub, right_sub);
     sync.registerCallback(boost::bind(&callback, _1, _2));
-    /**********************************************************************/
 
-    dso::ROSOutputWrapper rosOutput;
-    fullSystem->outputWrapper.push_back(&rosOutput);
+    // TODO: make it work with Pangolin (doesn't work if we use ros output wrapper)
+    // This will handle publishing to ROS topics.
+    rosOutput = new ROSOutputWrapper();
+    fullSystem->outputWrapper.push_back(rosOutput);
 
     ros::spin();
-
-    fullSystem->printResult("/home/huicanlin/catkin_ws/src/stereo_dso_ros/examples/result.txt");
-    for (IOWrap::Output3DWrapper *ow: fullSystem->outputWrapper)
-    {
-        ow->join();
-        delete ow;
-    }
-
-    delete undistorter;
-    delete fullSystem;
+    stopSystem = true;
 
     return 0;
 }
