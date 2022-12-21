@@ -75,13 +75,14 @@ namespace dso
         // ref cloud
         bool useReferenceCloud;
         std::string referenceCloudPath;
-        PointCloudXYZINormal loc_reference_cloud;
+        PointCloudXYZ loc_reference_cloud;
 
-        pcl::RadiusOutlierRemoval<pcl::PointXYZINormal> outrem;
+        pcl::RadiusOutlierRemoval<pcl::PCLPointCloud2> outrem;
+        pcl::StatisticalOutlierRemoval<pcl::PCLPointCloud2> sor;
 
-        PointCloudXYZINormal::Ptr global_cloud;
-        PointCloudXYZINormal::Ptr reference_cloud;
-        std::deque<PointCloudXYZINormal::Ptr> margin_cloud_window;
+        PointCloudXYZ::Ptr global_cloud;
+        PointCloudXYZ::Ptr reference_cloud;
+        std::deque<PointCloudXYZ::Ptr> margin_cloud_window;
         double lastTimestamp;
         int minNumPointsToSend;
         bool useRANSAC;
@@ -96,6 +97,10 @@ namespace dso
         // RadiusOutlierRemoval parameters
         double activeRadiusSearch, marginRadiusSearch;
         int activeMinNeighborsInRadius, marginMinNeighborsInRadius;
+
+        // StatisticalOutlierRemoval parameters
+        int meanK;
+        double stddevMulThresh;
 
         long int pub_idx = 0;
 

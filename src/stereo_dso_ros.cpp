@@ -318,6 +318,48 @@ void callback(const sensor_msgs::ImageConstPtr &img, const sensor_msgs::ImageCon
     delete undistImg_right;
 }
 
+//std::function<void(const sensor_msgs::ImageConstPtr &img,
+//                   const sensor_msgs::ImageConstPtr &img_right)>
+//        callback = [](const sensor_msgs::ImageConstPtr &img,
+//                      const sensor_msgs::ImageConstPtr &img_right)
+//{
+//    double stamp = convertStamp(img->header.stamp);
+//
+//    cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
+//    assert(cv_ptr->image.type() == CV_8U);
+//    assert(cv_ptr->image.channels() == 1);
+//
+//    cv_bridge::CvImagePtr cv_ptr_right = cv_bridge::toCvCopy(img_right, sensor_msgs::image_encodings::MONO8);
+//    assert(cv_ptr_right->image.type() == CV_8U);
+//    assert(cv_ptr_right->image.channels() == 1);
+//
+//
+//    if (setting_fullResetRequested)
+//    {
+//        std::vector<IOWrap::Output3DWrapper *> wraps = fullSystem->outputWrapper;
+//        delete fullSystem;
+//        for (IOWrap::Output3DWrapper *ow: wraps) ow->reset();
+//        fullSystem = new FullSystem();
+//        fullSystem->linearizeOperation = false;
+//        fullSystem->outputWrapper = wraps;
+//        if (undistorter->photometricUndist != 0)
+//            fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
+//        setting_fullResetRequested = false;
+//    }
+//
+//    MinimalImageB minImg((int) cv_ptr->image.cols, (int) cv_ptr->image.rows, (unsigned char *) cv_ptr->image.data);
+//    MinimalImageB minImg_right((int) cv_ptr_right->image.cols, (int) cv_ptr_right->image.rows,
+//                               (unsigned char *) cv_ptr_right->image.data);
+//    ImageAndExposure *undistImg = undistorter->undistort<unsigned char>(&minImg, 1, stamp, 1.0f);
+//    ImageAndExposure *undistImg_right = undistorter->undistort<unsigned char>(&minImg_right, 1, stamp, 1.0f);
+//
+//    fullSystem->addActiveFrame(undistImg, undistImg_right, frameID);
+//    frameID++;
+//    //printf("frameID: %d\n", frameID);
+//    delete undistImg;
+//    delete undistImg_right;
+//};
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "stereo_dso_ros");
@@ -377,6 +419,7 @@ int main(int argc, char **argv)
     message_filters::Subscriber<sensor_msgs::Image> right_sub(nh, "/cam1/image_raw", 1);// "/camera/right/image_raw"
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> sync_pol;
     message_filters::Synchronizer<sync_pol> sync(sync_pol(10), left_sub, right_sub);
+    //    sync.registerCallback(&callback);
     sync.registerCallback(boost::bind(&callback, _1, _2));
     /**********************************************************************/
 

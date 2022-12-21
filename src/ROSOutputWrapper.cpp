@@ -6,8 +6,8 @@ using namespace dso;
 
 dso::ROSOutputWrapper::ROSOutputWrapper()
     : nh("stereo_dso"),
-      global_cloud(new PointCloudXYZINormal),
-      //      reference_cloud(new PointCloudXYZINormal),
+      global_cloud(new PointCloudXYZ),
+      //      reference_cloud(new PointCloudXYZ),
       lastTimestamp(0.0)
 {
     dsoOdomHighFreqPublisher = nh.advertise<nav_msgs::Odometry>("pose_hf", 10);
@@ -38,6 +38,11 @@ dso::ROSOutputWrapper::ROSOutputWrapper()
     ros::param::get("marginMinNeighborsInRadius", marginMinNeighborsInRadius);
     std::cout << "marginRadiusSearch: " << marginRadiusSearch << std::endl;
     std::cout << "marginMinNeighborsInRadius: " << marginMinNeighborsInRadius << std::endl;
+
+    ros::param::get("meanK", meanK);
+    ros::param::get("stddevMulThresh", stddevMulThresh);
+    std::cout << "meanK: " << meanK << std::endl;
+    std::cout << "stddevMulThresh: " << stddevMulThresh << std::endl;
 
     ros::param::get("minNumPointsToSend", minNumPointsToSend);
     ros::param::get("useRANSAC", useRANSAC);
@@ -71,10 +76,6 @@ dso::ROSOutputWrapper::ROSOutputWrapper()
     Tmir.setRotationMatrix((e_mir_Y * e_mir_Z).block<3, 3>(0, 0));
 
     Sophus::SO3d R1 = Sophus::SO3d((e_mir_Y * e_mir_Z).block<3, 3>(0, 0));
-
-    std::cout << "e_Tf: " << e_mir_Y * e_mir_Z << std::endl;
-    std::cout << "Tf: " << Tmir.matrix() << std::endl;
-    std::cout << "R1: " << R1.matrix() << std::endl;
 }
 
 void ROSOutputWrapper::publish_reference_cloud()
@@ -260,11 +261,14 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
     float cyi = -cy / fy;
 
     sensor_msgs::PointCloud2 msg_local_cloud, msg_global_cloud, msg_reference_cloud;
-    PointCloudXYZINormal::Ptr local_cloud_cam(new PointCloudXYZINormal);
-    PointCloudXYZINormal::Ptr local_cloud_world(new PointCloudXYZINormal);
-    PointCloudXYZINormal::Ptr active_local_cloud_cam(new PointCloudXYZINormal);
-    PointCloudXYZINormal::Ptr active_local_cloud_world(new PointCloudXYZINormal);
-    PointCloudXYZINormal::Ptr margin_local_cloud(new PointCloudXYZINormal);
+    //    PointCloudXYZ::Ptr local_cloud_cam(new PointCloudXYZ);
+    //    PointCloudXYZ::Ptr local_cloud_world(new PointCloudXYZ);
+    //    PointCloudXYZ::Ptr active_local_cloud_cam(new PointCloudXYZ);
+    PointCloudXYZ::Ptr active_local_cloud_world(new PointCloudXYZ);
+    PointCloudXYZ::Ptr margin_local_cloud(new PointCloudXYZ);
+
+    pcl::PCLPointCloud2::Ptr active_local_cloud_world_2(new pcl::PCLPointCloud2);
+    pcl::PCLPointCloud2::Ptr margin_local_cloud_2(new pcl::PCLPointCloud2);
 
     long int npointsHessians = 0;
     long int npointsHessiansMarginalized = 0;
@@ -329,12 +333,12 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
                 //                    pos_metric_cam[i] = e_fixedScalePointToCam(i, 3);
                 //                }
 
-                pcl::PointXYZINormal point_world;
+                pcl::PointXYZ point_world;
                 point_world.x = pos_world(0);
                 point_world.y = pos_world(1);
                 point_world.z = pos_world(2);
 
-                //                pcl::PointXYZINormal point_metric_cam;
+                //                pcl::PointXYZ point_metric_cam;
                 //                point_metric_cam.x = pos_metric_cam(0);
                 //                point_metric_cam.y = pos_metric_cam(1);
                 //                point_metric_cam.z = pos_metric_cam(2);
@@ -394,13 +398,12 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
                 //                    pos_metric_cam[i] = e_fixedScalePointToCam(i, 3);
                 //                }
 
-                pcl::PointXYZINormal point_world;
+                pcl::PointXYZ point_world;
                 point_world.x = pos_world(0);
                 point_world.y = pos_world(1);
                 point_world.z = pos_world(2);
-                point_world.curvature = fh->shell->timestamp;
 
-                //                pcl::PointXYZINormal point_metric_cam;
+                //                pcl::PointXYZ point_metric_cam;
                 //                point_metric_cam.x = pos_metric_cam(0);
                 //                point_metric_cam.y = pos_metric_cam(1);
                 //                point_metric_cam.z = pos_metric_cam(2);
@@ -418,11 +421,21 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
     if (active_local_cloud_world->size() < 1)
         return;
 
-    //    PointCloudXYZINormal::Ptr filtered_active_local_cloud_cam(new PointCloudXYZINormal);
-    //    PointCloudXYZINormal::Ptr filtered_active_local_cloud_world(new PointCloudXYZINormal);
-    //    PointCloudXYZINormal::Ptr filtered_margin_local_cloud(new PointCloudXYZINormal);
-    //
-    //    ROS_WARN("Filtering act. points");
+    pcl::toPCLPointCloud2(*active_local_cloud_world, *active_local_cloud_world_2);
+    pcl::toPCLPointCloud2(*margin_local_cloud, *margin_local_cloud_2);
+
+    //    PointCloudXYZ::Ptr filtered_active_local_cloud_cam(new PointCloudXYZ);
+    //    PointCloudXYZ::Ptr filtered_active_local_cloud_world(new PointCloudXYZ);
+    pcl::PCLPointCloud2::Ptr filtered_active_local_cloud_world_2(new pcl::PCLPointCloud2);
+    //        PointCloudXYZ::Ptr filtered_margin_local_cloud(new PointCloudXYZ);
+    pcl::PCLPointCloud2::Ptr filtered_margin_local_cloud_2(new pcl::PCLPointCloud2);
+
+    ROS_WARN("Filtering act. points");
+    sor.setInputCloud(active_local_cloud_world_2);
+    sor.setMeanK(meanK);
+    sor.setStddevMulThresh(stddevMulThresh);
+    sor.filter(*filtered_active_local_cloud_world_2);
+
     //    outrem.setInputCloud(active_local_cloud_world);
     //    outrem.setRadiusSearch(activeRadiusSearch);
     //    outrem.setMinNeighborsInRadius(activeMinNeighborsInRadius);
@@ -443,20 +456,22 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
     //        return;
     //    }
     //
-    //    ros::Time ros_ts;
-    //    ros_ts.fromSec(timestamp);
+    ros::Time ros_ts;
+    ros_ts.fromSec(timestamp);
 
     // Get local_cloud
 
     //    *local_cloud_world = *filtered_active_local_cloud_world + *filtered_margin_local_cloud;
     //
-    //    pcl::toROSMsg(*local_cloud_world, msg_local_cloud);
-    //    msg_local_cloud.header.stamp = ros_ts;
-    //    msg_local_cloud.header.frame_id = "map";
+    pcl_conversions::moveFromPCL(*active_local_cloud_world_2, msg_local_cloud);
+    //    pcl::toROSMsg(*active_local_cloud_world, msg_local_cloud);
+    msg_local_cloud.header.stamp = ros_ts;
+    msg_local_cloud.header.frame_id = "zed2_camera_frame";
 
     //    *global_cloud += *local_cloud_world;
 
     ROS_WARN("Pub. points");
+    dsoLocalPointCloudPublisher.publish(msg_local_cloud);
     //    {
     //        std::unique_lock<std::mutex> mtx(pclMutex);
     //        localPointsBuf.push_back(msg_local_cloud);

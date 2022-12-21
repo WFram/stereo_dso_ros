@@ -32,7 +32,7 @@ message("---- FOUND Pangolin Libs at\n\"${Pangolin_LIBRARIES}\"")
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_module)
 find_package(Eigen3 REQUIRED)
 find_package(PCL 1.8 REQUIRED)
-find_package(Boost COMPONENTS system thread)
+find_package(Boost COMPONENTS system thread filesystem chrono serialization date_time timer regex)
 find_library(STEREO_DSO_LIBRARY dso ${STEREO_DSO_PATH}/build/lib)
 
 catkin_package(
@@ -51,9 +51,18 @@ catkin_package(
 ## Build ##
 ###########
 
+add_definitions("-DENABLE_SSE")
 set(CMAKE_CXX_FLAGS
-        "${SSE_FLAGS} -march=native"
+        "${SSE_FLAGS}"
         )
+
+#set(CMAKE_CXX_FLAGS
+#        "${SSE_FLAGS}"
+#        )
+
+#set(CMAKE_CXX_FLAGS
+#        "${SSE_FLAGS} -march=native"
+#        )
 
 #set(CMAKE_CXX_FLAGS
 #        "${SSE_FLAGS} -O2 -g -std=c++0x -march=native -fno-omit-frame-pointer"
@@ -73,9 +82,9 @@ include_directories(
 ## Declare a C++ executable
 add_executable(stereo_dso_ros src/stereo_dso_ros.cpp src/ROSOutputWrapper.cpp)
 
+set(STEREO_DSO_LINKED_LIBRARIES boost_system cxsparse ${BOOST_THREAD_LIBRARY} ${LIBZIP_LIBRARY} ${Pangolin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+
 target_link_libraries(stereo_dso_ros
         ${STEREO_DSO_LIBRARY}
-        ${PCL_LIBRARIES}
-        ${Pangolin_LIBRARIES}
-        ${OpenCV_LIBS}
+        ${STEREO_DSO_LINKED_LIBRARIES}
         ${catkin_LIBRARIES})

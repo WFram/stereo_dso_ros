@@ -106,7 +106,7 @@ Visualization Manager:
       Size (Pixels): 6
       Size (m): 0.029999999329447746
       Style: Points
-      Topic: /dso/local_point_cloud
+      Topic: /stereo_dso/local_point_cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: false
@@ -189,7 +189,7 @@ Visualization Manager:
           Scale: 1
           Value: true
         Value: true
-      Enabled: false
+      Enabled: true
       Keep: 1
       Name: HFOdometry
       Position Tolerance: 0.10000000149011612
@@ -206,7 +206,7 @@ Visualization Manager:
         Value: Axes
       Topic: /stereo_dso/pose_hf
       Unreliable: false
-      Value: false
+      Value: true
     - Angle Tolerance: 0.10000000149011612
       Class: rviz/Odometry
       Covariance:
@@ -330,7 +330,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 3.3268656730651855
+      Distance: 2.9276418685913086
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -338,17 +338,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.808756947517395
-        Y: -0.21827688813209534
+        X: 0.7844383716583252
+        Y: -0.13261519372463226
         Z: -0.20487692952156067
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3202022612094879
+      Pitch: 0.28020229935646057
       Target Frame: <Fixed Frame>
-      Yaw: 2.774059534072876
+      Yaw: 3.0290629863739014
     Saved: ~
 Window Geometry:
   Displays:
