@@ -125,41 +125,56 @@ Sophus::SE3d transformPointFixedScale(const Sophus::SE3d &pose,
     return T_W_point;
 }
 
+Sophus::SE3d invTransformPointFixedScale(const Sophus::SE3d &pose,
+                                         Eigen::Vector3d &point_world)
+{
+    // TODO: we used sim(3) here
+    Sophus::SE3d T_w_cam = pose.inverse();
+    Sophus::Vector3d t_world_point(point_world);
+    Sophus::SO3d R_world_point;
+    Sophus::SE3d T_cam_point;
+
+    T_cam_point = T_w_cam.inverse() * Sophus::SE3d(R_world_point, t_world_point);
+
+    return T_cam_point;
+}
+
 void ROSOutputWrapper::publishOutput()
 {
-    if (poseBuf.empty() || localPointsBuf.empty())
-    {
-        return;
-    }
-
-    // TODO: how the mutex affects FILLING the buffers?
-    //    ROS_WARN("Good buffer");
-    std::unique_ptr<nav_msgs::Odometry> dso_pose = nullptr;
-    poseMutex.lock();
-    while (poseBuf.size() > 1)
-        poseBuf.pop_front();
-    dso_pose = std::make_unique<nav_msgs::Odometry>(poseBuf.front());
-    dsoOdomLowFreqPublisher.publish(*dso_pose);
-    poseBuf.clear();
-    poseMutex.unlock();
-
-    if (dso_pose == nullptr)
-    {
-        ROS_WARN("Locked the pose. Nothing to publish");
-        return;
-    }
-
-    sensor_msgs::PointCloud2 dso_local_cloud;
-    pclMutex.lock();
-
-    while (localPointsBuf.size() > 1)
-        localPointsBuf.pop_front();
-    dso_local_cloud = localPointsBuf.front();
-    dso_local_cloud.header.stamp = dso_pose->header.stamp;
-    dsoLocalPointCloudPublisher.publish(dso_local_cloud);
-    localPointsBuf.clear();
-
-    pclMutex.unlock();
+    std::cout << "PUBLISH OUTPUT!" << std::endl;
+    //    if (poseBuf.empty() || localPointsBuf.empty())
+    //    {
+    //        return;
+    //    }
+    //
+    //    // TODO: how the mutex affects FILLING the buffers?
+    //    //    ROS_WARN("Good buffer");
+    //    std::unique_ptr<nav_msgs::Odometry> dso_pose = nullptr;
+    //    poseMutex.lock();
+    //    while (poseBuf.size() > 1)
+    //        poseBuf.pop_front();
+    //    dso_pose = std::make_unique<nav_msgs::Odometry>(poseBuf.front());
+    //    dsoOdomLowFreqPublisher.publish(*dso_pose);
+    //    poseBuf.clear();
+    //    poseMutex.unlock();
+    //
+    //    if (dso_pose == nullptr)
+    //    {
+    //        ROS_WARN("Locked the pose. Nothing to publish");
+    //        return;
+    //    }
+    //
+    //    sensor_msgs::PointCloud2 dso_local_cloud;
+    //    pclMutex.lock();
+    //
+    //    while (localPointsBuf.size() > 1)
+    //        localPointsBuf.pop_front();
+    //    dso_local_cloud = localPointsBuf.front();
+    //    dso_local_cloud.header.stamp = dso_pose->header.stamp;
+    //    dsoLocalPointCloudPublisher.publish(dso_local_cloud);
+    //    localPointsBuf.clear();
+    //
+    //    pclMutex.unlock();
 }
 
 void ROSOutputWrapper::publishInitSignal()
@@ -323,15 +338,16 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
 
                 // TODO: make for cam points
 
-                //                Sophus::SE3d fixedScalePointToCam(invTransformPointFixedScale(mCamToWorld.inverse().matrix(),
-                //                                                                              pos_world));
+                Sophus::SE3d fixedScalePointToCam(invTransformPointFixedScale(mCamToWorld.inverse(),
+                                                                              pos_world));
 
                 // If you don't want to use the optical transform, then remove Toc from here
+                Eigen::Matrix<double, 4, 4> e_fixedScalePointToCam = Tmir.matrix() * Toc.matrix() * fixedScalePointToCam.matrix() * Toc.inverse().matrix() * Tmir.inverse().matrix();
                 //                Eigen::Matrix<double, 4, 4> e_fixedScalePointToCam = Toc.matrix() * fixedScalePointToCam.matrix();
-                //                for (int i = 0; i < 3; i++)
-                //                {
-                //                    pos_metric_cam[i] = e_fixedScalePointToCam(i, 3);
-                //                }
+                for (int i = 0; i < 3; i++)
+                {
+                    pos_metric_cam[i] = e_fixedScalePointToCam(i, 3);
+                }
 
                 pcl::PointXYZ point_world;
                 point_world.x = pos_world(0);
@@ -343,8 +359,7 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
                 //                point_metric_cam.y = pos_metric_cam(1);
                 //                point_metric_cam.z = pos_metric_cam(2);
 
-                active_local_cloud_world->push_back(point_world);
-                ROS_WARN("Accumulated active points");
+                active_local_cloud_world->push_back(point_metric_cam);
             }
 
             for (dso::PointHessian *phm: fh->pointHessiansMarginalized)
@@ -386,17 +401,15 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
                 for (int i = 0; i < 3; i++)
                     pos_world[i] = e_fixedScalePointToWorld(i, 3);
 
-                // TODO: make for cam points
+                Sophus::SE3d fixedScalePointToCam(invTransformPointFixedScale(mCamToWorld.inverse(),
+                                                                              pos_world));
 
-                //                Sophus::SE3d fixedScalePointToCam(invTransformPointFixedScale(mCamToWorld.inverse().matrix(),
-                //                                                                              pos_world));
-                //
-                //                // If you don't want to use the optical transform, then remove Toc from here
-                //                Eigen::Matrix<double, 4, 4> e_fixedScalePointToCam = Toc.matrix() * fixedScalePointToCam.matrix();
-                //                for (int i = 0; i < 3; i++)
-                //                {
-                //                    pos_metric_cam[i] = e_fixedScalePointToCam(i, 3);
-                //                }
+                // If you don't want to use the optical transform, then remove Toc from here
+                Eigen::Matrix<double, 4, 4> e_fixedScalePointToCam = Toc.matrix() * fixedScalePointToCam.matrix();
+                for (int i = 0; i < 3; i++)
+                {
+                    pos_metric_cam[i] = e_fixedScalePointToCam(i, 3);
+                }
 
                 pcl::PointXYZ point_world;
                 point_world.x = pos_world(0);
@@ -409,15 +422,13 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
                 //                point_metric_cam.z = pos_metric_cam(2);
                 //                point_metric_cam.curvature = fh->shell->timestamp;
 
-                margin_local_cloud->push_back(point_world);
-                ROS_WARN("Accumulated margin points");
+                margin_local_cloud->push_back(point_metric_cam);
             }
 
             timestamp = fh->shell->timestamp;
         }
     }
 
-    ROS_WARN("Check zero size");
     if (active_local_cloud_world->size() < 1)
         return;
 
@@ -461,6 +472,7 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
 
     // Get local_cloud
 
+    //    *local_cloud_world = *filtered_active_local_cloud_world;
     //    *local_cloud_world = *filtered_active_local_cloud_world + *filtered_margin_local_cloud;
     //
     pcl_conversions::moveFromPCL(*active_local_cloud_world_2, msg_local_cloud);
