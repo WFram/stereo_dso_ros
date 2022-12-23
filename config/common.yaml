@@ -7,9 +7,9 @@ probability: 0.99  # NOT IN USE
 maxIterations: 1000  # NOT IN USE
 
 # RadiusOutlierRemoval settings
-activeMinNeighborsInRadius: 8 # 8
+activeMinNeighborsInRadius: 4 # 8
 activeRadiusSearch: 0.2 # 0.2
-marginMinNeighborsInRadius: 8
+marginMinNeighborsInRadius: 4
 marginRadiusSearch: 0.2
 # StatisticalOutlierRemoval settings
 meanK: 10
@@ -21,5 +21,5 @@ minClusterSize: 35
 maxClusterSize: 5000
 
 # For localization
-useReferenceCloud: false
+useReferenceCloud: true
 referenceCloudPath: "/home/wfram/.ros/dmvio_global_cloud.pcd"

@@ -355,7 +355,7 @@ void callback(const sensor_msgs::ImageConstPtr &img, const sensor_msgs::ImageCon
         ros::shutdown();
     }
 
-    //    rosOutput->publishOutput();
+    rosOutput->publishOutput();
 
     MinimalImageB minImg((int) cv_ptr->image.cols, (int) cv_ptr->image.rows, (unsigned char *) cv_ptr->image.data);
     MinimalImageB minImg_right((int) cv_ptr_right->image.cols, (int) cv_ptr_right->image.rows,

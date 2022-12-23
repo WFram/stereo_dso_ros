@@ -13,9 +13,7 @@ dso::ROSOutputWrapper::ROSOutputWrapper()
     dsoOdomHighFreqPublisher = nh.advertise<nav_msgs::Odometry>("pose_hf", 10);
     dsoOdomLowFreqPublisher = nh.advertise<nav_msgs::Odometry>("pose_lf", 10);
     dsoLocalPointCloudPublisher = nh.advertise<sensor_msgs::PointCloud2>("local_point_cloud", 1);
-    //    dsoGlobalPointCloudPublisher = nh.advertise<sensor_msgs::PointCloud2>("global_point_cloud", 1);
-    //    dsoReferencePointCloudPublisher = nh.advertise<sensor_msgs::PointCloud2>("reference_point_cloud", 1);
-    //    dsoLocReferencePointCloudPublisher = nh.advertise<sensor_msgs::PointCloud2>("loc_reference_point_cloud", 1, true);
+    dsoLocReferencePointCloudPublisher = nh.advertise<sensor_msgs::PointCloud2>("loc_reference_point_cloud", 1, true);
 
     //    dsoImagePublisher = nh.advertise<sensor_msgs::Image>("/dso/image_undistort", 10);
 
@@ -50,14 +48,14 @@ dso::ROSOutputWrapper::ROSOutputWrapper()
     std::cout << "minNumPointsToSend: " << minNumPointsToSend << std::endl;
     std::cout << "useRANSAC: " << useRANSAC << std::endl;
 
-    //    ros::param::get("useReferenceCloud", useReferenceCloud);
-    //    std::cout << "useReferenceCloud: " << useReferenceCloud << std::endl;
-    //    ros::param::get("referenceCloudPath", referenceCloudPath);
-    //    std::cout << "referenceCloudPath: " << referenceCloudPath << std::endl;
+    ros::param::get("useReferenceCloud", useReferenceCloud);
+    std::cout << "useReferenceCloud: " << useReferenceCloud << std::endl;
+    ros::param::get("referenceCloudPath", referenceCloudPath);
+    std::cout << "referenceCloudPath: " << referenceCloudPath << std::endl;
 
-    //    pcl::io::loadPCDFile(referenceCloudPath, loc_reference_cloud);
-    //    if (useReferenceCloud)
-    //        publish_reference_cloud();
+    pcl::io::loadPCDFile(referenceCloudPath, loc_reference_cloud);
+    if (useReferenceCloud)
+        publish_reference_cloud();
 
     poseBuf.clear();
     localPointsBuf.clear();
@@ -141,40 +139,37 @@ Sophus::SE3d invTransformPointFixedScale(const Sophus::SE3d &pose,
 
 void ROSOutputWrapper::publishOutput()
 {
-    std::cout << "PUBLISH OUTPUT!" << std::endl;
-    //    if (poseBuf.empty() || localPointsBuf.empty())
-    //    {
-    //        return;
-    //    }
-    //
-    //    // TODO: how the mutex affects FILLING the buffers?
-    //    //    ROS_WARN("Good buffer");
-    //    std::unique_ptr<nav_msgs::Odometry> dso_pose = nullptr;
-    //    poseMutex.lock();
-    //    while (poseBuf.size() > 1)
-    //        poseBuf.pop_front();
-    //    dso_pose = std::make_unique<nav_msgs::Odometry>(poseBuf.front());
-    //    dsoOdomLowFreqPublisher.publish(*dso_pose);
-    //    poseBuf.clear();
-    //    poseMutex.unlock();
-    //
-    //    if (dso_pose == nullptr)
-    //    {
-    //        ROS_WARN("Locked the pose. Nothing to publish");
-    //        return;
-    //    }
-    //
-    //    sensor_msgs::PointCloud2 dso_local_cloud;
-    //    pclMutex.lock();
-    //
-    //    while (localPointsBuf.size() > 1)
-    //        localPointsBuf.pop_front();
-    //    dso_local_cloud = localPointsBuf.front();
-    //    dso_local_cloud.header.stamp = dso_pose->header.stamp;
-    //    dsoLocalPointCloudPublisher.publish(dso_local_cloud);
-    //    localPointsBuf.clear();
-    //
-    //    pclMutex.unlock();
+        if (poseBuf.empty() || localPointsBuf.empty())
+        {
+            return;
+        }
+
+        std::unique_ptr<nav_msgs::Odometry> dso_pose = nullptr;
+        poseMutex.lock();
+        while (poseBuf.size() > 1)
+            poseBuf.pop_front();
+        dso_pose = std::make_unique<nav_msgs::Odometry>(poseBuf.front());
+        dsoOdomLowFreqPublisher.publish(*dso_pose);
+        poseBuf.clear();
+        poseMutex.unlock();
+
+        if (dso_pose == nullptr)
+        {
+            ROS_WARN("Locked the pose. Nothing to publish");
+            return;
+        }
+
+        sensor_msgs::PointCloud2 dso_local_cloud;
+        pclMutex.lock();
+
+        while (localPointsBuf.size() > 1)
+            localPointsBuf.pop_front();
+        dso_local_cloud = localPointsBuf.front();
+        dso_local_cloud.header.stamp = dso_pose->header.stamp;
+        dsoLocalPointCloudPublisher.publish(dso_local_cloud);
+        localPointsBuf.clear();
+
+        pclMutex.unlock();
 }
 
 void ROSOutputWrapper::publishInitSignal()
@@ -194,18 +189,6 @@ void ROSOutputWrapper::publishCamPose(dso::FrameShell *frame, dso::CalibHessian 
     lastTimestamp = frame->timestamp;
 
     auto &camToWorld = frame->camToWorld;
-
-    //    std::cout << "camToWorld: " << camToWorld.matrix() << std::endl;
-    // camToWorld to eigen  matrxi
-    // mult e_mir
-    // nback to sophus
-    //    Eigen::Matrix4d e_camToWorld = camToWorld.matrix();
-    //    Eigen::Matrix4d e_camToWorld_mir = e_camToWorld * e_mir;
-    //    camToWorld = Sophus::SE3d(e_camToWorld_mir);
-
-    //    std::cout << "e_camToWorld: " << e_camToWorld << std::endl;
-    //    std::cout << "e_camToWorld_mir: " << e_camToWorld_mir << std::endl;
-    //    std::cout << "camToWorld: " << camToWorld.matrix() << std::endl;
 
     {
         std::unique_lock<std::mutex> lk(mutex);
@@ -284,12 +267,12 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
 
     pcl::PCLPointCloud2::Ptr active_local_cloud_world_2(new pcl::PCLPointCloud2);
     pcl::PCLPointCloud2::Ptr margin_local_cloud_2(new pcl::PCLPointCloud2);
+    pcl::PCLPointCloud2::Ptr local_cloud_world_2(new pcl::PCLPointCloud2);
 
     long int npointsHessians = 0;
     long int npointsHessiansMarginalized = 0;
     double timestamp = 0.0;
 
-    ROS_WARN("Start accumulating points");
     {
         std::unique_lock<std::mutex> lk(mutex);
         for (dso::FrameHessian *fh: frames)
@@ -354,10 +337,10 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
                 point_world.y = pos_world(1);
                 point_world.z = pos_world(2);
 
-                //                pcl::PointXYZ point_metric_cam;
-                //                point_metric_cam.x = pos_metric_cam(0);
-                //                point_metric_cam.y = pos_metric_cam(1);
-                //                point_metric_cam.z = pos_metric_cam(2);
+                pcl::PointXYZ point_metric_cam;
+                point_metric_cam.x = pos_metric_cam(0);
+                point_metric_cam.y = pos_metric_cam(1);
+                point_metric_cam.z = pos_metric_cam(2);
 
                 active_local_cloud_world->push_back(point_metric_cam);
             }
@@ -405,7 +388,7 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
                                                                               pos_world));
 
                 // If you don't want to use the optical transform, then remove Toc from here
-                Eigen::Matrix<double, 4, 4> e_fixedScalePointToCam = Toc.matrix() * fixedScalePointToCam.matrix();
+                Eigen::Matrix<double, 4, 4> e_fixedScalePointToCam = Tmir.matrix() * Toc.matrix() * fixedScalePointToCam.matrix() * Toc.inverse().matrix() * Tmir.inverse().matrix();
                 for (int i = 0; i < 3; i++)
                 {
                     pos_metric_cam[i] = e_fixedScalePointToCam(i, 3);
@@ -416,11 +399,10 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
                 point_world.y = pos_world(1);
                 point_world.z = pos_world(2);
 
-                //                pcl::PointXYZ point_metric_cam;
-                //                point_metric_cam.x = pos_metric_cam(0);
-                //                point_metric_cam.y = pos_metric_cam(1);
-                //                point_metric_cam.z = pos_metric_cam(2);
-                //                point_metric_cam.curvature = fh->shell->timestamp;
+                pcl::PointXYZ point_metric_cam;
+                point_metric_cam.x = pos_metric_cam(0);
+                point_metric_cam.y = pos_metric_cam(1);
+                point_metric_cam.z = pos_metric_cam(2);
 
                 margin_local_cloud->push_back(point_metric_cam);
             }
@@ -435,58 +417,41 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
     pcl::toPCLPointCloud2(*active_local_cloud_world, *active_local_cloud_world_2);
     pcl::toPCLPointCloud2(*margin_local_cloud, *margin_local_cloud_2);
 
-    //    PointCloudXYZ::Ptr filtered_active_local_cloud_cam(new PointCloudXYZ);
-    //    PointCloudXYZ::Ptr filtered_active_local_cloud_world(new PointCloudXYZ);
     pcl::PCLPointCloud2::Ptr filtered_active_local_cloud_world_2(new pcl::PCLPointCloud2);
-    //        PointCloudXYZ::Ptr filtered_margin_local_cloud(new PointCloudXYZ);
     pcl::PCLPointCloud2::Ptr filtered_margin_local_cloud_2(new pcl::PCLPointCloud2);
 
-    ROS_WARN("Filtering act. points");
-    sor.setInputCloud(active_local_cloud_world_2);
-    sor.setMeanK(meanK);
-    sor.setStddevMulThresh(stddevMulThresh);
-    sor.filter(*filtered_active_local_cloud_world_2);
+    outrem.setInputCloud(active_local_cloud_world_2);
+    outrem.setRadiusSearch(activeRadiusSearch);
+    outrem.setMinNeighborsInRadius(activeMinNeighborsInRadius);
+    outrem.setKeepOrganized(true);
+    outrem.filter(*filtered_active_local_cloud_world_2);
 
-    //    outrem.setInputCloud(active_local_cloud_world);
-    //    outrem.setRadiusSearch(activeRadiusSearch);
-    //    outrem.setMinNeighborsInRadius(activeMinNeighborsInRadius);
-    //    outrem.setKeepOrganized(true);
-    //    outrem.filter(*filtered_active_local_cloud_world);
-    //
-    //    ROS_WARN("Filtering m. points ");
-    //    outrem.setInputCloud(margin_local_cloud);
-    //    outrem.setRadiusSearch(marginRadiusSearch);
-    //    outrem.setMinNeighborsInRadius(marginMinNeighborsInRadius);
-    //    outrem.setKeepOrganized(true);
-    //    outrem.filter(*filtered_margin_local_cloud);
+    outrem.setInputCloud(margin_local_cloud_2);
+    outrem.setRadiusSearch(marginRadiusSearch);
+    outrem.setMinNeighborsInRadius(marginMinNeighborsInRadius);
+    outrem.setKeepOrganized(true);
+    outrem.filter(*filtered_margin_local_cloud_2);
 
-    //    ROS_WARN("Check size points");
     //    if (filtered_active_local_cloud_world->size() < minNumPointsToSend)
     //    {
     //        ROS_WARN("Not enough points");
     //        return;
     //    }
-    //
+
     ros::Time ros_ts;
     ros_ts.fromSec(timestamp);
 
-    // Get local_cloud
+    *local_cloud_world_2 = *filtered_active_local_cloud_world_2 + *filtered_margin_local_cloud_2;
 
-    //    *local_cloud_world = *filtered_active_local_cloud_world;
-    //    *local_cloud_world = *filtered_active_local_cloud_world + *filtered_margin_local_cloud;
-    //
-    pcl_conversions::moveFromPCL(*active_local_cloud_world_2, msg_local_cloud);
-    //    pcl::toROSMsg(*active_local_cloud_world, msg_local_cloud);
+    pcl_conversions::moveFromPCL(*local_cloud_world_2, msg_local_cloud);
     msg_local_cloud.header.stamp = ros_ts;
     msg_local_cloud.header.frame_id = "zed2_camera_frame";
 
     //    *global_cloud += *local_cloud_world;
+    //    dsoLocalPointCloudPublisher.publish(msg_local_cloud);
 
-    ROS_WARN("Pub. points");
-    dsoLocalPointCloudPublisher.publish(msg_local_cloud);
-    //    {
-    //        std::unique_lock<std::mutex> mtx(pclMutex);
-    //        localPointsBuf.push_back(msg_local_cloud);
-    //    }
-    ROS_WARN("NULL");
+    {
+        std::unique_lock<std::mutex> mtx(pclMutex);
+        localPointsBuf.push_back(msg_local_cloud);
+    }
 }
