@@ -7,10 +7,8 @@ Panels:
         - /Global Options1
         - /TF1/Frames1
         - /TF1/Tree1
-        - /Image1
         - /HFOdometry1/Shape1
         - /LFOdometry1/Shape1
-        - /Image2
       Splitter Ratio: 0.5
     Tree Height: 376
   - Class: rviz/Selection
@@ -142,14 +140,10 @@ Visualization Manager:
       Use rainbow: true
       Value: true
     - Class: rviz/TF
-      Enabled: true
+      Enabled: false
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        odom:
-          Value: true
-        zed2_camera_frame:
-          Value: true
       Marker Alpha: 0.5
       Marker Scale: 1
       Name: TF
@@ -157,11 +151,9 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        odom:
-          zed2_camera_frame:
-            {}
+        {}
       Update Interval: 0
-      Value: true
+      Value: false
     - Class: rviz/Image
       Enabled: true
       Image Topic: /zed2/zed_node/left/image_rect_color
@@ -332,7 +324,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 6.946746349334717
+      Distance: 7.443613529205322
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -340,17 +332,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 2.4208555221557617
-        Y: -0.48957765102386475
+        X: 4.0639190673828125
+        Y: 0.20980627834796906
         Z: -0.20487919449806213
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.11020175367593765
+      Pitch: 0.005201791413128376
       Target Frame: <Fixed Frame>
-      Yaw: 3.035891056060791
+      Yaw: 3.185894727706909
     Saved: ~
 Window Geometry:
   Displays:

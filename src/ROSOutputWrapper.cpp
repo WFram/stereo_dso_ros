@@ -258,16 +258,16 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
     float cxi = -cx / fx;
     float cyi = -cy / fy;
 
-    sensor_msgs::PointCloud2 msg_local_cloud, msg_global_cloud, msg_reference_cloud;
+    sensor_msgs::PointCloud2 msg_local_cloud;
     //    PointCloudXYZ::Ptr local_cloud_cam(new PointCloudXYZ);
     //    PointCloudXYZ::Ptr local_cloud_world(new PointCloudXYZ);
     //    PointCloudXYZ::Ptr active_local_cloud_cam(new PointCloudXYZ);
     PointCloudXYZ::Ptr active_local_cloud_world(new PointCloudXYZ);
-    PointCloudXYZ::Ptr margin_local_cloud(new PointCloudXYZ);
+//    PointCloudXYZ::Ptr margin_local_cloud(new PointCloudXYZ);
 
     pcl::PCLPointCloud2::Ptr active_local_cloud_world_2(new pcl::PCLPointCloud2);
-    pcl::PCLPointCloud2::Ptr margin_local_cloud_2(new pcl::PCLPointCloud2);
-    pcl::PCLPointCloud2::Ptr local_cloud_world_2(new pcl::PCLPointCloud2);
+//    pcl::PCLPointCloud2::Ptr margin_local_cloud_2(new pcl::PCLPointCloud2);
+//    pcl::PCLPointCloud2::Ptr local_cloud_world_2(new pcl::PCLPointCloud2);
 
     long int npointsHessians = 0;
     long int npointsHessiansMarginalized = 0;
@@ -345,7 +345,7 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
                 active_local_cloud_world->push_back(point_metric_cam);
             }
 
-            for (dso::PointHessian *phm: fh->pointHessiansMarginalized)
+            /*for (dso::PointHessian *phm: fh->pointHessiansMarginalized)
             {
                 Eigen::Vector3d pos_cam, pos_world, pos_metric_cam;
 
@@ -405,7 +405,7 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
                 point_metric_cam.z = pos_metric_cam(2);
 
                 margin_local_cloud->push_back(point_metric_cam);
-            }
+            }*/
 
             timestamp = fh->shell->timestamp;
         }
@@ -415,22 +415,22 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
         return;
 
     pcl::toPCLPointCloud2(*active_local_cloud_world, *active_local_cloud_world_2);
-    pcl::toPCLPointCloud2(*margin_local_cloud, *margin_local_cloud_2);
+//    pcl::toPCLPointCloud2(*margin_local_cloud, *margin_local_cloud_2);
 
-    pcl::PCLPointCloud2::Ptr filtered_active_local_cloud_world_2(new pcl::PCLPointCloud2);
-    pcl::PCLPointCloud2::Ptr filtered_margin_local_cloud_2(new pcl::PCLPointCloud2);
+//    pcl::PCLPointCloud2::Ptr filtered_active_local_cloud_world_2(new pcl::PCLPointCloud2);
+//    pcl::PCLPointCloud2::Ptr filtered_margin_local_cloud_2(new pcl::PCLPointCloud2);
 
-    outrem.setInputCloud(active_local_cloud_world_2);
-    outrem.setRadiusSearch(activeRadiusSearch);
-    outrem.setMinNeighborsInRadius(activeMinNeighborsInRadius);
-    outrem.setKeepOrganized(true);
-    outrem.filter(*filtered_active_local_cloud_world_2);
-
-    outrem.setInputCloud(margin_local_cloud_2);
-    outrem.setRadiusSearch(marginRadiusSearch);
-    outrem.setMinNeighborsInRadius(marginMinNeighborsInRadius);
-    outrem.setKeepOrganized(true);
-    outrem.filter(*filtered_margin_local_cloud_2);
+//    outrem.setInputCloud(active_local_cloud_world_2);
+//    outrem.setRadiusSearch(activeRadiusSearch);
+//    outrem.setMinNeighborsInRadius(activeMinNeighborsInRadius);
+//    outrem.setKeepOrganized(true);
+//    outrem.filter(*filtered_active_local_cloud_world_2);
+//
+//    outrem.setInputCloud(margin_local_cloud_2);
+//    outrem.setRadiusSearch(marginRadiusSearch);
+//    outrem.setMinNeighborsInRadius(marginMinNeighborsInRadius);
+//    outrem.setKeepOrganized(true);
+//    outrem.filter(*filtered_margin_local_cloud_2);
 
     //    if (filtered_active_local_cloud_world->size() < minNumPointsToSend)
     //    {
@@ -441,17 +441,17 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
     ros::Time ros_ts;
     ros_ts.fromSec(timestamp);
 
-    *local_cloud_world_2 = *filtered_active_local_cloud_world_2 + *filtered_margin_local_cloud_2;
+//    *local_cloud_world_2 = *filtered_active_local_cloud_world_2 + *filtered_margin_local_cloud_2;
 
-    pcl_conversions::moveFromPCL(*local_cloud_world_2, msg_local_cloud);
+    pcl_conversions::moveFromPCL(*active_local_cloud_world_2, msg_local_cloud);
     msg_local_cloud.header.stamp = ros_ts;
     msg_local_cloud.header.frame_id = "zed2_camera_frame";
 
     //    *global_cloud += *local_cloud_world;
     //    dsoLocalPointCloudPublisher.publish(msg_local_cloud);
 
-    {
-        std::unique_lock<std::mutex> mtx(pclMutex);
-        localPointsBuf.push_back(msg_local_cloud);
-    }
+//    {
+//        std::unique_lock<std::mutex> mtx(pclMutex);
+//        localPointsBuf.push_back(msg_local_cloud);
+//    }
 }
