@@ -21,5 +21,5 @@ minClusterSize: 35
 maxClusterSize: 5000
 
 # For localization
-useReferenceCloud: true
+useReferenceCloud: false
 referenceCloudPath: "/home/wfram/.ros/dmvio_global_cloud.pcd"

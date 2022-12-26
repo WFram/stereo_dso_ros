@@ -67,7 +67,9 @@ namespace dso
                 srv_cbk = [this](std_srvs::Empty::Request &req,
                                  std_srvs::Empty::Response &res)
         {
-            pcl::io::savePCDFileASCII("stereo_dso_global_cloud.pcd", *global_cloud);
+            PointCloudXYZ::Ptr global_cloud_1(new PointCloudXYZ);
+            pcl::fromPCLPointCloud2(*global_cloud, *global_cloud_1);
+            pcl::io::savePCDFileASCII("stereo_dso_global_cloud.pcd", *global_cloud_1);
             ROS_INFO("Global cloud saved");
             return true;
         };
@@ -80,7 +82,8 @@ namespace dso
         pcl::RadiusOutlierRemoval<pcl::PCLPointCloud2> outrem;
         pcl::StatisticalOutlierRemoval<pcl::PCLPointCloud2> sor;
 
-        PointCloudXYZ::Ptr global_cloud;
+        pcl::PCLPointCloud2::Ptr global_cloud;
+
         PointCloudXYZ::Ptr reference_cloud;
         std::deque<PointCloudXYZ::Ptr> margin_cloud_window;
         double lastTimestamp;
