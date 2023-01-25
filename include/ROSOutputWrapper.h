@@ -79,6 +79,7 @@ namespace dso
         std::string referenceCloudPath;
         PointCloudXYZ loc_reference_cloud;
 
+        bool useFiltering;
         pcl::RadiusOutlierRemoval<pcl::PCLPointCloud2> outrem;
         pcl::StatisticalOutlierRemoval<pcl::PCLPointCloud2> sor;
 

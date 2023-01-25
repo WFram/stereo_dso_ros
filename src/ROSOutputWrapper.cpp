@@ -25,6 +25,9 @@ dso::ROSOutputWrapper::ROSOutputWrapper()
     std::cout << "probability: " << probability << std::endl;
     std::cout << "maxIterations: " << maxIterations << std::endl;
 
+    ros::param::get("useFiltering", useFiltering);
+    std::cout << "useFiltering: " << useFiltering << std::endl;
+
     ros::param::get("activeRadiusSearch", activeRadiusSearch);
     ros::param::get("activeMinNeighborsInRadius", activeMinNeighborsInRadius);
     std::cout << "activeRadiusSearch: " << activeRadiusSearch << std::endl;
@@ -418,34 +421,44 @@ void ROSOutputWrapper::publishKeyframes(std::vector<dso::FrameHessian *> &frames
     pcl::PCLPointCloud2::Ptr filtered_active_local_cloud_world_2(new pcl::PCLPointCloud2);
     //    pcl::PCLPointCloud2::Ptr filtered_margin_local_cloud_2(new pcl::PCLPointCloud2);
 
-    outrem.setInputCloud(active_local_cloud_world_2);
-    outrem.setRadiusSearch(activeRadiusSearch);
-    outrem.setMinNeighborsInRadius(activeMinNeighborsInRadius);
-    outrem.setKeepOrganized(true);
-    outrem.filter(*filtered_active_local_cloud_world_2);
-    //
-    //    outrem.setInputCloud(margin_local_cloud_2);
-    //    outrem.setRadiusSearch(marginRadiusSearch);
-    //    outrem.setMinNeighborsInRadius(marginMinNeighborsInRadius);
-    //    outrem.setKeepOrganized(true);
-    //    outrem.filter(*filtered_margin_local_cloud_2);
+    if (useFiltering)
+    {
+        outrem.setInputCloud(active_local_cloud_world_2);
+        outrem.setRadiusSearch(activeRadiusSearch);
+        outrem.setMinNeighborsInRadius(activeMinNeighborsInRadius);
+        outrem.setKeepOrganized(true);
+        outrem.filter(*filtered_active_local_cloud_world_2);
+    }
 
-    //    if (filtered_active_local_cloud_world->size() < minNumPointsToSend)
-    //    {
-    //        ROS_WARN("Not enough points");
-    //        return;
-    //    }
+    /*
+        outrem.setInputCloud(margin_local_cloud_2);
+        outrem.setRadiusSearch(marginRadiusSearch);
+        outrem.setMinNeighborsInRadius(marginMinNeighborsInRadius);
+        outrem.setKeepOrganized(true);
+        outrem.filter(*filtered_margin_local_cloud_2);
+
+        if (filtered_active_local_cloud_world->size() < minNumPointsToSend)
+        {
+            ROS_WARN("Not enough points");
+            return;
+        }*/
 
     ros::Time ros_ts;
     ros_ts.fromSec(timestamp);
-
     //    *local_cloud_world_2 = *filtered_active_local_cloud_world_2 + *filtered_margin_local_cloud_2;
 
-    pcl_conversions::moveFromPCL(*filtered_active_local_cloud_world_2, msg_local_cloud);
+    if (useFiltering)
+    {
+        pcl_conversions::moveFromPCL(*filtered_active_local_cloud_world_2, msg_local_cloud);
+        *global_cloud += *filtered_active_local_cloud_world_2;
+    }
+    else
+    {
+        pcl_conversions::moveFromPCL(*active_local_cloud_world_2, msg_local_cloud);
+        *global_cloud += *active_local_cloud_world_2;
+    }
     msg_local_cloud.header.stamp = ros_ts;
     msg_local_cloud.header.frame_id = "zed2_camera_frame";
-
-    *global_cloud += *filtered_active_local_cloud_world_2;
     //    dsoLocalPointCloudPublisher.publish(msg_local_cloud);
 
     {
